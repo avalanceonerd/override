@@ -1,0 +1,5 @@
+dns:
+  default-nameserver: #!replace
+    - system
+  nameserver: #!replace
+    - system
