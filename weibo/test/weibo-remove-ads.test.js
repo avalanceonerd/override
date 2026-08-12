@@ -5,6 +5,7 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const scriptPath = path.join(__dirname, '..', 'js', 'weibo-remove-ads.js');
+const lpxPath = path.join(__dirname, '..', 'Weibo_remove_ads.lpx');
 const fixturePath = path.join(__dirname, 'fixtures', 'build-comments.json');
 
 function runScript(body, requestPath = '/2/comments/build_comments?x=1') {
@@ -94,4 +95,21 @@ test('normalizes app icon cards on the Kelee appicon route', () => {
 
   assert.equal(result.data.list[0].cardType, 2);
   assert.equal(result.data.list[1].cardType, undefined);
+});
+
+test('packages all required Weibo endpoints against the local script', () => {
+  const lpx = fs.readFileSync(lpxPath, 'utf8');
+  const localScriptUrl = 'https://raw.githubusercontent.com/avalanceonerd/override/main/weibo/js/weibo-remove-ads.js';
+
+  assert.match(lpx, /comments\\\/build_comments/);
+  assert.match(lpx, /statuses\\\/.*container_timeline/);
+  assert.match(lpx, /bootpreload\\\.uve\\\.weibo\\\.com/);
+  assert.doesNotMatch(lpx, /kelee\\.one/);
+
+  const responseEntries = lpx.match(/^http-response .*$/gm) ?? [];
+  assert.ok(responseEntries.length > 0);
+  for (const entry of responseEntries) {
+    assert.match(entry, new RegExp(`script-path=${localScriptUrl.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}`));
+    assert.match(entry, /requires-body=true/);
+  }
 });
