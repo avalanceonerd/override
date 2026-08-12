@@ -43,7 +43,7 @@ test('removes explicit ads while retaining 13 comments', () => {
 test('retains a normal nickname while removing type 6 UI items', () => {
   const body = {
     datas: [
-      { type: 0, data: { id: 'normal', user: { screen_name: '寰崥鐖卞ソ鑰卄' } } },
+      { type: 0, data: { id: 'normal', user: { screen_name: '微博爱好者' } } },
       { type: 6, data: { id: 'ui-item' } },
     ],
   };
