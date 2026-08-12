@@ -52,3 +52,22 @@ test('retains a normal nickname while removing type 6 UI items', () => {
 
   assert.deepEqual(result.datas, [body.datas[0]]);
 });
+
+test('removes a timeline feed item marked adMblog', () => {
+  const body = {
+    items: [
+      { category: 'feed', data: { id: 'ad', readtimetype: 'adMblog' } },
+      { category: 'feed', data: { id: 'post' } },
+    ],
+  };
+
+  const result = JSON.parse(runScript(JSON.stringify(body), '/2/statuses/container_timeline?since_id=1').body);
+
+  assert.deepEqual(result.items, [body.items[1]]);
+});
+
+test('passes malformed comment JSON through unchanged', () => {
+  const body = '{not valid JSON';
+
+  assert.equal(runScript(body).body, body);
+});
