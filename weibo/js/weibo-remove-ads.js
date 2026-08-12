@@ -64,7 +64,7 @@ function filterBuildComments(obj) {
     cleanComment(item); return true;
   });
   if (Array.isArray(obj?.root_comments)) obj.root_comments = obj.root_comments.filter((item) => {
-    if (isCommentAd(item) || isPseudoComment(item)) return false;
+    if (isCommentAd(item) || [6, 15, 41].includes(item?.type) || isPseudoComment(item)) return false;
     cleanComment(item); return true;
   });
   if (Array.isArray(obj?.comments)) obj.comments.forEach((item) => {
@@ -159,6 +159,80 @@ function handleSplash(obj) {
   for (const ad of obj?.cached_ad?.ads ?? []) Object.assign(ad, { show_count: 50, duration: 0, start_date: 3818332800, end_date: 3818419199 });
 }
 
+const searchCardTypes = [19, 22, 118, 206, 208, 217, 236, 249, 261];
+const searchGroupCardTypes = [118, 182, 192, 217, 247, 264];
+
+function filterSearchItems(items) {
+  if (!Array.isArray(items)) return items;
+  return items.filter((item) => {
+    if (item?.category === 'feed') {
+      if (isFeedAd(item.data)) return false;
+      removeFeedUi(item.data);
+      return true;
+    }
+    if (item?.category === 'card') return !searchCardTypes.includes(item?.data?.card_type)
+      && item?.data?.itemid !== 'ads_slide' && item?.data?.cate_id !== '1114'
+      && !Object.hasOwn(item?.data ?? {}, 'rank');
+    if (item?.category === 'cell') return true;
+    if (item?.category !== 'group' || item?.item_category === 'insert_item') return false;
+    if (Array.isArray(item?.items)) item.items = item.items.filter((child) => {
+      if (searchGroupCardTypes.includes(child?.data?.card_type) || child?.data?.cate_id === '1114') return false;
+      removeFeedUi(child?.data);
+      return true;
+    });
+    return true;
+  });
+}
+
+function handleSearchRoute(obj) {
+  if (url.includes('container_timeline')) { delete obj.loadedInfo; obj.items = filterSearchItems(obj.items); return; }
+  if (!url.includes('finder')) return handleSearch(obj);
+  if (Array.isArray(obj?.channelInfo?.channels)) obj.channelInfo.channels = obj.channelInfo.channels.filter((channel) =>
+    ['band_channel', 'discover_channel', 'trends_channel'].includes(channel?.key)).map((channel) => {
+    const payload = channel.payload;
+    if (payload?.loadedInfo) { payload.loadedInfo.searchBarContent = []; delete payload.loadedInfo.headerBack?.channelStyleMap; delete payload.loadedInfo.searchBarStyleInfo; }
+    if (payload) payload.items = filterSearchItems(payload.items);
+    return channel;
+  });
+  delete obj?.channelInfo?.moreChannels;
+  delete obj?.header?.insert_data;
+  if (Array.isArray(obj?.header?.data?.items)) obj.header.data.items = filterSearchItems(obj.header.data.items);
+}
+
+function handleSearchAll(obj) {
+  ['bg_img', 'background_scheme', 'background_url'].forEach((key) => delete obj?.header?.data?.[key]);
+  delete obj?.loadedInfo?.serviceMap?.layer;
+  ['bg_lottie', 'bg_lottie_dark', 'discuss_avatars'].forEach((key) => delete obj?.footer?.data?.[key]);
+  if (Array.isArray(obj?.footer?.data?.menus)) obj.footer.data.menus = obj.footer.data.menus.filter((item) => !/\d+_ai\./.test(item?.pic ?? ''));
+  if (Array.isArray(obj?.cards)) obj.cards = obj.cards.filter((card) => {
+    if (Array.isArray(card?.card_group)) { card.card_group = card.card_group.filter((group) => {
+      if ([22, 3].includes(group?.card_type) || (group?.card_type === 42 && group?.title_extra_text === '广告')) return false;
+      if (group?.mblog && (isFeedAd(group.mblog) || group.mblog.is_ad === 1)) return false;
+      removeFeedUi(group?.mblog); removeVoteInfo(group?.mblog); return true;
+    }); return true; }
+    if (!card?.mblog || isFeedAd(card.mblog)) return !card?.mblog;
+    removeFeedUi(card.mblog); removeVoteInfo(card.mblog); return true;
+  });
+  obj.items = filterSearchItems(obj.items);
+}
+
+function handleProfileUserInfo(obj) {
+  delete obj?.header?.data?.userInfo?.avatar_extend_info; delete obj?.profileSkin?.data;
+  const toolbar = obj?.footer?.data?.toolbar_menus_new;
+  if (!toolbar) return;
+  delete toolbar.lottie_guide; delete toolbar?.servicePopup?.subData;
+  if (Array.isArray(toolbar.items)) toolbar.items = toolbar.items.filter((item) => !['recommend', 'urge'].includes(item?.identifier) && !/reward_/.test(item?.identifier ?? ''));
+}
+
+function handlePushActive(obj) {
+  ['compose_add_guide', 'floating_windows_force_show', 'interceptad', 'interceptad_cardlist', 'loginconfig', 'profile_lotties', 'ug_red_paper', 'weibo_pic_banner'].forEach((key) => delete obj[key]);
+  if (Object.hasOwn(obj ?? {}, 'disable_floating_window')) obj.disable_floating_window = '1';
+  if (obj?.feed_redpacket) { Object.assign(obj.feed_redpacket, { starttime: '2208960000', interval: '31536000', endtime: '2209046399' }); ['finish_icon', 'guide', 'icon', 'pre_icon'].forEach((key) => delete obj.feed_redpacket[key]); }
+  if (Object.hasOwn(obj ?? {}, 'floating_window_for_live_streaming')) obj.floating_window_for_live_streaming = false;
+  if (Object.hasOwn(obj ?? {}, 'floating_window_show_interval')) obj.floating_window_show_interval = 31536000;
+  if (Array.isArray(obj?.floating_windows)) obj.floating_windows = obj.floating_windows.filter((item) => !/(?:^ad_?|red_pocket|ug_high_priority)/.test(item?.subtype ?? ''));
+}
+
 function handle(obj) {
   if (url.includes('/2/cardlist')) handleCardList(obj);
   else if (url.includes('/2/checkin/show')) { obj.show = 0; obj.show_time = 0; }
@@ -171,9 +245,12 @@ function handle(obj) {
     if (Array.isArray(obj?.channelInfo?.channels)) obj.channelInfo.channels = obj.channelInfo.channels.filter((item) => !/_selfrecomm|_chaohua/.test(item?.flowId ?? ''));
   }
   else if (url.includes('/2/messageflow/notice') && Array.isArray(obj?.messages)) obj.messages = obj.messages.filter((item) => !item?.msg_card?.ad_tag);
-  else if (url.includes('/2/flowpage') && Array.isArray(obj?.items)) obj.items.forEach((item) => { if (Array.isArray(item?.items)) item.items = item.items.filter((child) => !child?.data?.promotion && !/_img_search_stick/.test(child?.data?.pic ?? '')); });
-  else if (url.includes('/2/groups/allgroups/v2') && Array.isArray(obj?.pageDatas)) obj.pageDatas = obj.pageDatas.filter((item) => item?.pageDataType !== 'homeExtend');
-  else if (url.includes('/2/page') || url.includes('/2/search/')) handleSearch(obj);
+  else if (url.includes('/2/flowpage') && Array.isArray(obj?.items)) obj.items = obj.items.filter((item) => item?.data?.itemid !== 'hot-search-push-notice').map((item) => { if (Array.isArray(item?.items)) item.items = item.items.filter((child) => !child?.data?.promotion && !/_img_search_stick/.test(child?.data?.pic ?? '')); return item; });
+  else if (url.includes('/2/groups/allgroups/v2') && Array.isArray(obj?.pageDatas)) obj.pageDatas = obj.pageDatas.filter((item) => item?.pageDataType !== 'homeExtend').map((item) => { if (Array.isArray(item?.categories)) item.categories.forEach((category) => { if (category?.title === '默认分组' && Array.isArray(category?.pageDatas)) category.pageDatas = category.pageDatas.filter((page) => ['最新微博', '特别关注', '好友圈', '视频'].includes(page?.title)).map((page) => (page.title === '最新微博' ? { ...page, title: '微博' } : page)); }); return item; });
+  else if (url.includes('/2/profile/userinfo')) handleProfileUserInfo(obj);
+  else if (url.includes('/2/push/active')) handlePushActive(obj);
+  else if (url.includes('/2/searchall')) handleSearchAll(obj);
+  else if (url.includes('/2/page') || url.includes('/2/search/')) handleSearchRoute(obj);
   else if (url.includes('/2/profile/container_timeline')) handleProfileTimeline(obj);
   else if ((url.includes('/2/profile/dealatt') || url.includes('/2/friendships/'))) { obj.cards = []; if (Array.isArray(obj?.toolbar_menus_new?.items)) obj.toolbar_menus_new.items = obj.toolbar_menus_new.items.filter((item) => item?.identifier !== 'recommend' && !/reward_/.test(item?.identifier ?? '')); }
   else if (url.includes('/2/profile/me') && Array.isArray(obj?.items)) {
@@ -185,13 +262,13 @@ function handle(obj) {
       if (item?.itemId === '100505_-_manage2') { delete item.footer; delete item.body; }
     });
   }
-  else if (url.includes('/2/profile/statuses/tab') && Array.isArray(obj?.cards)) obj.cards.forEach((card) => card?.card_group?.forEach((group) => { removeAvatar(group?.mblog); removeVoteInfo(group?.mblog); }));
+  else if (url.includes('/2/profile/statuses/tab') && Array.isArray(obj?.cards)) { obj.cards.forEach((card) => { if (Array.isArray(card?.card_group)) card.card_group = card.card_group.filter((group) => group?.card_type !== 22); card?.card_group?.forEach((group) => { removeAvatar(group?.mblog); removeVoteInfo(group?.mblog); }); }); if (obj?.cardlistInfo?.page_type === '08') delete obj.cardlistInfo; }
   else if (url.includes('/2/statuses/comments_expand_child') && Array.isArray(obj?.items)) obj.items.forEach((item) => removeAvatar(item?.data));
   else if (url.includes('/2/statuses/container_detail_comment') && Array.isArray(obj?.items)) obj.items = obj.items.filter((item) => {
     if (['trend', 'comment_header_tip'].includes(item?.type) || item?.data?.card_type === 236 || item?.data?.itemid === 'ai_summary_entrance_real_show') return false;
     cleanComment(item); item?.items?.forEach(cleanComment); return true;
   });
-  else if (url.includes('/2/statuses/container_detail?')) { if (Array.isArray(obj?.pageHeader?.data?.items)) obj.pageHeader.data.items = obj.pageHeader.data.items.filter((item) => !(item?.data?.is_ad_card === 1 || item?.data?.card_type === 227 || item?.data?.card_type === 236 || item?.data?.itemid === 'top_searching')); ['ai_search_share', 'follow_data', 'reward_info', 'sharecontent'].forEach((key) => delete obj?.detailInfo?.extend?.[key]); delete obj?.detailInfo?.status?.reward_info; }
+  else if (url.includes('/2/statuses/container_detail?')) { if (Array.isArray(obj?.pageHeader?.data?.items)) obj.pageHeader.data.items = obj.pageHeader.data.items.filter((item) => !(item?.category === 'group' || item?.data?.is_ad_card === 1 || item?.data?.card_type === 227 || item?.data?.card_type === 236 || item?.data?.itemid === 'top_searching')); ['ai_search_share', 'follow_data', 'reward_info', 'sharecontent'].forEach((key) => delete obj?.detailInfo?.extend?.[key]); delete obj?.detailInfo?.status?.reward_info; }
   else if (url.includes('/2/statuses/container_timeline_topic')) handleTopicTimeline(obj);
   else if (url.includes('/2/statuses/container_timeline_hot') || url.includes('/2/statuses/unread_hot_timeline')) { ['ad', 'advertises', 'trends', 'headers'].forEach((key) => delete obj[key]); obj.items = filterFeedItems(obj.items); if (Array.isArray(obj?.statuses)) obj.statuses = obj.statuses.filter((item) => !isFeedAd(item)).map((item) => (removeFeedUi(item), item)); }
   else if (url.includes('/2/statuses/container_timeline') || url.includes('/2/statuses/unread_hot_timeline')) { delete obj?.loadedInfo?.headers; delete obj.common_struct; obj.items = filterFeedItems(obj.items, { skipTitles: true }); }
@@ -202,6 +279,7 @@ function handle(obj) {
   else if (url.includes('/2/video/tiny_stream_mid_detail')) { if (obj?.status?.video_info) { obj.status.video_info.shopping = []; obj.status.video_info.bottom_banner = {}; obj.status.video_info.float_info = {}; } }
   else if (url.includes('/2/video/tiny_stream_video_list')) { obj.statuses = []; obj.tab_list = []; }
   else if (url.includes('/2/!/huati/discovery_home_bottom_channels')) { delete obj.button_configs; if (Array.isArray(obj?.channelInfo?.channel_list)) obj.channelInfo.channel_list = obj.channelInfo.channel_list.filter((item) => item?.title !== '广场'); }
+  else if (url.includes('/aj/appicon/list') && Array.isArray(obj?.data?.list)) obj.data.list.forEach((item) => { if (item?.cardType) item.cardType = 2; });
   else if (url.includes('/2/shproxy/chaohua/discovery/searchactive') && Array.isArray(obj?.items)) obj.items = obj.items.filter((item) => item?.data?.card_type !== 1007);
   else if (url.includes('/v1/ad/preload') || url.includes('/v2/ad/preload') || url.includes('/wbapplua/wbpullad.lua') || url.includes('/preload/get_ad')) handleSplash(obj);
 }

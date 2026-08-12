@@ -71,3 +71,27 @@ test('passes malformed comment JSON through unchanged', () => {
 
   assert.equal(runScript(body).body, body);
 });
+
+test('removes UI records from root comments while retaining genuine comments', () => {
+  const body = {
+    root_comments: [
+      { type: 0, id: 'comment', user: { screen_name: 'reader' } },
+      { type: 6, id: 'recommendation' },
+      { type: 15, id: 'filter-tip' },
+      { type: 41, id: 'survey' },
+    ],
+  };
+
+  const result = JSON.parse(runScript(JSON.stringify(body)).body);
+
+  assert.deepEqual(result.root_comments, [body.root_comments[0]]);
+});
+
+test('normalizes app icon cards on the Kelee appicon route', () => {
+  const body = { data: { list: [{ id: 'theme', cardType: 9 }, { id: 'plain' }] } };
+
+  const result = JSON.parse(runScript(JSON.stringify(body), '/aj/appicon/list').body);
+
+  assert.equal(result.data.list[0].cardType, 2);
+  assert.equal(result.data.list[1].cardType, undefined);
+});
