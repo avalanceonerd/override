@@ -39,3 +39,16 @@ test('retains seven normal comments on a sponsored parent post', () => {
 test('removes explicit ads while retaining 13 comments', () => {
   assert.equal(runFixture('explicitAds').datas.length, 13);
 });
+
+test('retains a normal nickname while removing type 6 UI items', () => {
+  const body = {
+    datas: [
+      { type: 0, data: { id: 'normal', user: { screen_name: '寰崥鐖卞ソ鑰卄' } } },
+      { type: 6, data: { id: 'ui-item' } },
+    ],
+  };
+
+  const result = JSON.parse(runScript(JSON.stringify(body)).body);
+
+  assert.deepEqual(result.datas, [body.datas[0]]);
+});
