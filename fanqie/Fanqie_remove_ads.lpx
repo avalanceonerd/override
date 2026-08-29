@@ -1,0 +1,27 @@
+#!name=番茄小说 + 红果短剧 去广告（保守版）
+#!desc=拦截已公开规则中可明确识别的广告签名主机与广告请求；不拦截播放、内容 CDN 或通用 SDK。
+#!author=avalanceonerd[https://github.com/avalanceonerd]
+#!tag=去广告
+#!system=
+#!system_version=
+#!loon_version=3.4.0(962)
+#!homepage=https://github.com/avalanceonerd/override
+#!date=2026-08-29
+#!version=1.0.0
+#!changelog=Initial conservative release: retain only explicit advertisement endpoints.
+
+[Rule]
+DOMAIN,p6-ad-sign.byteimg.com,REJECT
+DOMAIN,p9-ad-sign.byteimg.com,REJECT
+
+[Rewrite]
+^https?:\/\/.+\.pangolin-sdk-toutiao\.com\/api\/ad\/union\/sdk\/(get_ads|stats|settings)\/ - reject
+^https?:\/\/.+\.(pglstatp-toutiao|pstatp)\.com\/(obj|img)\/(ad-app-package|ad)\/.+ - reject
+^https?:\/\/.+\.(pglstatp-toutiao|pstatp)\.com\/(obj|img)\/web\.business\.image\/.+ - reject
+^https?:\/\/.+\.(pglstatp-toutiao|pstatp)\.com\/obj\/ad-pattern\/renderer - reject
+^https?:\/\/.+\.pstatp\.com\/obj\/mosaic-legacy\/.+[?&]from=ad(?:&|$) - reject
+^https?:\/\/.+\.snssdk\.com\/api\/ad\/.+ - reject
+^https?:\/\/.+\.byteimg\.com\/(ad-app-package|web\.business\.image) - reject
+
+[MitM]
+hostname = %APPEND% *.pangolin-sdk-toutiao.com, *.pstatp.com, *.pglstatp-toutiao.com, *.snssdk.com, *.byteimg.com
